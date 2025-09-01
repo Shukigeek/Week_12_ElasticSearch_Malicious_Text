@@ -1,36 +1,47 @@
 import os
-
-from load_to_elastic.app import Elastic
 from csv_to_dict.load_csv import CSVLoader
 from process.sentiment import Sentiment
 from process.detect_weapon import WeaponDetector
+from elastic.elastic_manger import ElasticManager
 
 
 class Manager:
-    def __init__(self,documents):
-        file_path = os.environ.get("CSV_PATH", "../data/tweets_injected.csv")
+    def __init__(self):
+        file_path = os.getenv("CSV_PATH", "data/tweets_injected.csv")
         self.documents = CSVLoader(file_path).load()
-        self.es = Elastic(host=os.getenv("ES_HOST","http://127.0.0.1:9200")
-                          ,index_name="malicious_tweets")
-        self.es.wait_for_es()
+        self.es = ElasticManager(
+            host=os.getenv("ES_HOST", "http://127.0.0.1:9200"),
+            index_name="malicious_tweets"
+        )
         self.all_docs = None
+        self.load_to_elastic()
+        self.add_row_emotions()
+        self.add_row_weapon()
+        self.delete_docs()
+
     def load_to_elastic(self):
-        self.es.create_index()
-        self.es.index_documents(self.documents)
-        self.all_docs = self.es.get_all_documents()
+        self.es.setup_index(self.documents)
+        self.all_docs = self.es.get_all()
+
     def add_row_emotions(self):
-        for doc in self.all_docs:
-            s = Sentiment(doc["_source"]["text"])
-            self.es.add_field_to_document(doc["_id"],"sentiment",s.sentiment())
+        self.es.add_field_bulk(
+            docs=self.all_docs,
+            field_name="sentiment",
+            func=lambda text: Sentiment(text).sentiment()
+        )
+
     def add_row_weapon(self):
-        for doc in self.all_docs:
-            wd = WeaponDetector(doc["_source"]["text"])
-            self.es.add_field_to_document(doc["_id"],"weapons",wd.detect_weapons())
+        self.es.add_field_bulk(
+            docs=self.all_docs,
+            field_name="weapons",
+            func=lambda text: WeaponDetector(text).detect_weapons()
+        )
+
     def delete_docs(self):
         query = {
             "bool": {
                 "must": [
-                    {"match": {"Antisemitic": True}},
+                    {"match": {"Antisemitic": "1"}},
                     {"terms": {"sentiment": ["positive", "neutral"]}}
                 ],
                 "must_not": [
@@ -38,4 +49,49 @@ class Manager:
                 ]
             }
         }
-        self.es.delete_docs_by_query(query)
+        self.es.delete_docs(query)
+
+    def docs_antisemitic_with_some_weapon(self):
+
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"match": {"Antisemitic": "1"}},
+                        {"exists": {"field": "weapons"}}
+                    ]
+                }
+            }
+        }
+        return self.es.elastic.es.search(index=self.es.elastic.index, body=query,size=10000)["hits"]["hits"]
+
+    def docs_with_two_weapons(self):
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "script": {
+                                "script": {
+                                    "source": "doc['weapons'].size() >= 2",
+                                    "lang": "painless"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        return self.es.elastic.es.search(index=self.es.elastic.index, body=query,size=10000)["hits"]["hits"]
+
+
+if __name__ == '__main__':
+
+    # es = Elasticsearch("http://127.0.0.1:9200")
+    # if es.indices.exists(index="malicious_tweets"):
+    #     es.indices.delete(index="malicious_tweets")
+    #     print(f"Index malicious_tweets deleted.")
+    #
+    m = Manager()
+    print("אנטישמיים עם כלי נשק:", m.docs_antisemitic_with_some_weapon()[:1])
+    print("מסמכים עם שני כלי נשק לפחות:", m.docs_with_two_weapons()[:1])
