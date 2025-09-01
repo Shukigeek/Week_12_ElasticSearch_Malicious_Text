@@ -18,7 +18,8 @@ services:
     container_name: load_to_elastic
     environment:
       - ES_HOST = "http://es:9200"
-      - ES_INDEX = "Malicious_Tweets"
+      - ES_INDEX = "malicious_tweets"
+      - CSV_PATH = "data/tweets_injected.csv"
     depends_on:
       - es
     networks:

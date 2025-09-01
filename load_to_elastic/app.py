@@ -1,11 +1,24 @@
 import os
 import time
-from sklearn.datasets import fetch_20newsgroups
 from elasticsearch import Elasticsearch
+import csv
+
+file_path = os.environ.get("CSV_PATH", "../data/tweets_injected.csv")
+
+print("Using:", file_path)
+
+def csv_to_dict(data=file_path):
+    try:
+        with open(data, newline='', encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            return list(reader)
+    except Exception as e:
+        raise Exception("data didn't change good to dict")
 
 
-class ElasticDemo:
-    def __init__(self, host=None, index_name="Malicious_Tweets"):
+
+class Elastic:
+    def __init__(self, host=None, index_name="malicious_tweets"):
         self.es = Elasticsearch(host or os.getenv("ES_HOST", "http://127.0.0.1:9200"))
         self.index = index_name
 
@@ -55,26 +68,27 @@ class ElasticDemo:
         for hit in res["hits"]["hits"]:
             print(f" - {hit["_id"]} {hit['_source']['title']} [{hit['_source']['tag']}]")
     def delete_all_index(self):
-        self.es.indices.delete(index=self.index)
+        # delete all index
+        if self.es.indices.exists(index=self.index):
+            self.es.indices.delete(index=self.index)
+            print("all index is delete")
+
+    def delete_doc_by_id(self, doc_id):
+        # delete doc by is id
+        if self.es.exists(index=self.index, id=doc_id):
+            self.es.delete(index=self.index, id=doc_id)
+            print(f"Document {doc_id} deleted from index '{self.index}'")
+        else:
+            print(f"Document {doc_id} does not exist in index '{self.index}'")
 
 
 if __name__ == '__main__':
-
-    cats = ['alt.atheism', 'sci.space']
-    newsgroups = fetch_20newsgroups(categories=cats)
-
-    docs = []
-    for text, label in zip(newsgroups.data, newsgroups.target):
-        docs.append({
-            "title": text.split("\n")[0][:50],
-            "body": text,
-            "tag": newsgroups.target_names[label]
-        })
+    tweets = csv_to_dict()
 
 
-    demo = ElasticDemo()
+    elastic = Elastic()
     # demo.delete_all_index()
-    demo.wait_for_es()
-    demo.create_index()
-    demo.index_documents(docs)
-    demo.search(query="israel", size=5)
+    elastic.wait_for_es()
+    elastic.create_index()
+    elastic.index_documents(tweets)
+    elastic.search(query="israel", size=5)
