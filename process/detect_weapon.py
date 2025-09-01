@@ -13,4 +13,4 @@ class WeaponDetector:
         for weapon in self.weapons:
             if weapon.lower() in self.text:
                 all_weapons.append(weapon.lower())
-        return all_weapons or ""
+        return all_weapons

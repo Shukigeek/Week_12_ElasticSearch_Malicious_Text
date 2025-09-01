@@ -13,17 +13,21 @@ services:
     networks:
       - Malicious_Text
 
-  py:
-    build: load_to_elastic
-    container_name: load_to_elastic
+  elastic_tweets:
+    build: .
+    container_name: elastic_tweets
     environment:
-      - ES_HOST = "http://es:9200"
-      - ES_INDEX = "malicious_tweets"
-      - CSV_PATH = "data/tweets_injected.csv"
+      - ES_HOST=http://es:9200
+      - ES_INDEX=malicious_tweets
+      - CSV_PATH=/app/data/tweets_injected.csv
     depends_on:
       - es
     networks:
       - Malicious_Text
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
 
 networks:
   Malicious_Text:
