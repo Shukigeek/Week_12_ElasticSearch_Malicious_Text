@@ -10,4 +10,4 @@ class CSVLoader:
             with open(self.path, newline='', encoding="utf-8") as f:
                 return list(csv.DictReader(f))
         except Exception as e:
-            raise "data didn't change good to dict"
+            raise Exception(f"data didn't change good to dict error: {e}")
