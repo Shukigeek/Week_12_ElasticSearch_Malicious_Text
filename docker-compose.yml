@@ -11,19 +11,19 @@ services:
     ports:
       - "9200:9200"
     networks:
-      - demo_net
+      - Malicious_Text
 
   py:
-    build: ./py
-    container_name: py
+    build: load_to_elastic
+    container_name: load_to_elastic
     environment:
       - ES_HOST = "http://es:9200"
-      - ES_INDEX = "demo"
+      - ES_INDEX = "Malicious_Tweets"
     depends_on:
       - es
     networks:
-      - demo_net
+      - Malicious_Text
 
 networks:
-  demo_net:
+  Malicious_Text:
     driver: bridge
